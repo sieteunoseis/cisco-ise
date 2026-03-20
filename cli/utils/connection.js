@@ -22,6 +22,8 @@ function resolveConnection(opts) {
     password: opts.password || process.env.CISCO_ISE_PASSWORD || cluster?.password,
     ppan: opts.ppan || process.env.CISCO_ISE_PPAN || cluster?.ppan || undefined,
     pmnt: opts.pmnt || process.env.CISCO_ISE_PMNT || cluster?.pmnt || undefined,
+    sponsorUser: opts.sponsorUser || process.env.CISCO_ISE_SPONSOR_USER || cluster?.sponsorUser || undefined,
+    sponsorPassword: opts.sponsorPassword || process.env.CISCO_ISE_SPONSOR_PASSWORD || cluster?.sponsorPassword || undefined,
     insecure: opts.insecure ?? cluster?.insecure ?? false,
     readOnly: opts.readOnly ?? cluster?.readOnly ?? false,
   };
@@ -30,7 +32,7 @@ function resolveConnection(opts) {
   if (!resolved.username) throw new Error("Missing --username.");
   if (!resolved.password) throw new Error("Missing --password.");
 
-  for (const key of ["host", "username", "password", "ppan", "pmnt"]) {
+  for (const key of ["host", "username", "password", "ppan", "pmnt", "sponsorUser", "sponsorPassword"]) {
     if (resolved[key]) resolved[key] = config.resolveSecrets(resolved[key]);
   }
 

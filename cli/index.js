@@ -18,6 +18,8 @@ program
   .option("--cluster <name>", "use a named cluster from config")
   .option("--ppan <host>", "PAN node for ERS/OpenAPI (large deployments)")
   .option("--pmnt <host>", "MNT node for monitoring APIs (large deployments)")
+  .option("--sponsor-user <user>", "sponsor username for guest API")
+  .option("--sponsor-password <pass>", "sponsor password for guest API")
   .option("--insecure", "skip TLS certificate verification")
   .option("--read-only", "block write operations")
   .option("--dry-run", "show what would happen without executing")

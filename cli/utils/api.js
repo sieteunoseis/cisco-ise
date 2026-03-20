@@ -16,12 +16,101 @@ class IseClient {
     this.cacheDir = path.join(this.configDir, "cache");
     this.cacheTTL = 5 * 60 * 1000;
 
+    const httpsAgent = conn.insecure
+      ? new (require("https").Agent)({ rejectUnauthorized: false })
+      : undefined;
+
     this.axios = axios.create({
       auth: { username: conn.username, password: conn.password },
-      httpsAgent: conn.insecure
-        ? new (require("https").Agent)({ rejectUnauthorized: false })
-        : undefined,
+      httpsAgent,
       timeout: 90000,
+    });
+
+    // Sponsor axios instance for guest API (uses sponsor credentials)
+    if (conn.sponsorUser && conn.sponsorPassword) {
+      this.sponsorAxios = axios.create({
+        auth: { username: conn.sponsorUser, password: conn.sponsorPassword },
+        httpsAgent,
+        timeout: 90000,
+      });
+    }
+  }
+
+  sponsorGet(endpoint, params = {}) {
+    if (!this.sponsorAxios) {
+      throw new Error(
+        "Guest API requires sponsor credentials. Run:\n" +
+        "  cisco-ise config update <name> --sponsor-user <user> --sponsor-password <pass>"
+      );
+    }
+    const url = this.ersUrl(endpoint);
+    if (this.debug) process.stderr.write(`[DEBUG] SPONSOR GET ${url}\n`);
+    return this.sponsorAxios({ method: "GET", url, headers: { Accept: "application/json" }, params })
+      .then((res) => res.data);
+  }
+
+  sponsorPost(endpoint, body) {
+    if (!this.sponsorAxios) {
+      throw new Error(
+        "Guest API requires sponsor credentials. Run:\n" +
+        "  cisco-ise config update <name> --sponsor-user <user> --sponsor-password <pass>"
+      );
+    }
+    const url = this.ersUrl(endpoint);
+    if (this.dryRun) return Promise.resolve({ dryRun: true, method: "POST", url, body });
+    if (this.debug) process.stderr.write(`[DEBUG] SPONSOR POST ${url}\n`);
+    return this.sponsorAxios({ method: "POST", url, headers: { Accept: "application/json", "Content-Type": "application/json" }, data: body })
+      .then((res) => { this.invalidateCache(); return res.data; });
+  }
+
+  sponsorPut(endpoint, body) {
+    if (!this.sponsorAxios) {
+      throw new Error(
+        "Guest API requires sponsor credentials. Run:\n" +
+        "  cisco-ise config update <name> --sponsor-user <user> --sponsor-password <pass>"
+      );
+    }
+    const url = this.ersUrl(endpoint);
+    if (this.dryRun) return Promise.resolve({ dryRun: true, method: "PUT", url, body });
+    if (this.debug) process.stderr.write(`[DEBUG] SPONSOR PUT ${url}\n`);
+    return this.sponsorAxios({ method: "PUT", url, headers: { Accept: "application/json", "Content-Type": "application/json" }, data: body })
+      .then((res) => { this.invalidateCache(); return res.data; });
+  }
+
+  sponsorDelete(endpoint) {
+    if (!this.sponsorAxios) {
+      throw new Error(
+        "Guest API requires sponsor credentials. Run:\n" +
+        "  cisco-ise config update <name> --sponsor-user <user> --sponsor-password <pass>"
+      );
+    }
+    const url = this.ersUrl(endpoint);
+    if (this.dryRun) return Promise.resolve({ dryRun: true, method: "DELETE", url });
+    if (this.debug) process.stderr.write(`[DEBUG] SPONSOR DELETE ${url}\n`);
+    return this.sponsorAxios({ method: "DELETE", url, headers: { Accept: "application/json" } })
+      .then((res) => { this.invalidateCache(); return res.data; });
+  }
+
+  async sponsorPaginateAll(endpoint, params = {}, opts = {}) {
+    const limit = opts.limit || Infinity;
+    const pageSize = opts.pageSize || 100;
+    let page = opts.page || 1;
+    let all = [];
+
+    while (all.length < limit) {
+      const data = await this.sponsorGet(endpoint, { ...params, size: pageSize, page });
+      const result = data?.SearchResult;
+      if (!result?.resources?.length) break;
+      all = all.concat(result.resources);
+      if (all.length >= result.total || result.resources.length < pageSize) break;
+      page++;
+    }
+
+    const results = all.slice(0, limit === Infinity ? undefined : limit);
+    return results.map((r) => {
+      if (!r.link) return r;
+      const { link, ...rest } = r;
+      return rest;
     });
   }
 

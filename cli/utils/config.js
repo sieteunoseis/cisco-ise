@@ -38,6 +38,8 @@ function addCluster(name, opts) {
   };
   if (opts.ppan) config.clusters[name].ppan = opts.ppan;
   if (opts.pmnt) config.clusters[name].pmnt = opts.pmnt;
+  if (opts.sponsorUser) config.clusters[name].sponsorUser = opts.sponsorUser;
+  if (opts.sponsorPassword) config.clusters[name].sponsorPassword = opts.sponsorPassword;
   if (opts.insecure) config.clusters[name].insecure = true;
   if (opts.readOnly) config.clusters[name].readOnly = true;
   if (!config.activeCluster) config.activeCluster = name;

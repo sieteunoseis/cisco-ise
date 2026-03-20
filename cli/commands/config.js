@@ -63,6 +63,8 @@ module.exports = function (program) {
         };
         if (cluster.ppan) details.ppan = cluster.ppan;
         if (cluster.pmnt) details.pmnt = cluster.pmnt;
+        if (cluster.sponsorUser) details.sponsorUser = cluster.sponsorUser;
+        if (cluster.sponsorPassword) details.sponsorPassword = config.maskPassword(cluster.sponsorPassword);
         await printResult(details, command.optsWithGlobals().format);
       } catch (err) { printError(err); }
     });
@@ -115,6 +117,8 @@ module.exports = function (program) {
         if (globalOpts.password) updates.password = globalOpts.password;
         if (globalOpts.ppan) updates.ppan = globalOpts.ppan;
         if (globalOpts.pmnt) updates.pmnt = globalOpts.pmnt;
+        if (globalOpts.sponsorUser) updates.sponsorUser = globalOpts.sponsorUser;
+        if (globalOpts.sponsorPassword) updates.sponsorPassword = globalOpts.sponsorPassword;
         if (globalOpts.insecure !== undefined) updates.insecure = globalOpts.insecure;
         if (globalOpts.readOnly !== undefined) updates.readOnly = globalOpts.readOnly;
         config.updateCluster(name, updates);
