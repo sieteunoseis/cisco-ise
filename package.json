@@ -1,13 +1,14 @@
 {
   "name": "cisco-ise",
-  "version": "0.1.0",
+  "version": "1.0.0",
   "description": "CLI for Cisco ISE (Identity Services Engine) - ERS and OpenAPI operations",
   "main": "index.js",
   "bin": {
     "cisco-ise": "./bin/cisco-ise.js"
   },
   "scripts": {
-    "test": "echo \"No tests yet\" && exit 0"
+    "test": "node --test test/cli/*.test.js",
+    "test:integration": "NODE_ENV=test node --test test/integration/ise.test.js"
   },
   "keywords": [
     "cisco",
@@ -26,5 +27,19 @@
   "funding": {
     "type": "buymeacoffee",
     "url": "https://buymeacoffee.com/automatebldrs"
+  },
+  "dependencies": {
+    "@toon-format/toon": "^2.1.0",
+    "axios": "^1.13.6",
+    "cli-table3": "^0.6.5",
+    "commander": "^14.0.3",
+    "csv-parse": "^6.2.1",
+    "csv-stringify": "^6.7.0",
+    "fast-xml-parser": "^5.5.8",
+    "update-notifier": "^7.3.1"
+  },
+  "devDependencies": {
+    "dotenv": "^17.3.1",
+    "envalid": "^8.1.1"
   }
 }
