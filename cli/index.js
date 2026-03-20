@@ -39,6 +39,7 @@ require("./commands/radius.js")(program);
 require("./commands/tacacs.js")(program);
 require("./commands/trustsec.js")(program);
 require("./commands/internal-user.js")(program);
+require("./commands/doctor.js")(program);
 require("./commands/deployment.js")(program);
 
 program.parse(process.argv);
