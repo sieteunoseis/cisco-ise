@@ -1,0 +1,30 @@
+{
+  "name": "cisco-ise",
+  "version": "0.1.0",
+  "description": "CLI for Cisco ISE (Identity Services Engine) - ERS and OpenAPI operations",
+  "main": "index.js",
+  "bin": {
+    "cisco-ise": "./bin/cisco-ise.js"
+  },
+  "scripts": {
+    "test": "echo \"No tests yet\" && exit 0"
+  },
+  "keywords": [
+    "cisco",
+    "ise",
+    "identity-services-engine",
+    "ers",
+    "network-access",
+    "cli"
+  ],
+  "author": "sieteunoseis (jeremy.worden@gmail.com)",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/sieteunoseis/cisco-ise.git"
+  },
+  "funding": {
+    "type": "buymeacoffee",
+    "url": "https://buymeacoffee.com/automatebldrs"
+  }
+}
