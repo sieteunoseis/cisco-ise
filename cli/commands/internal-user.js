@@ -95,6 +95,52 @@ module.exports = function (program) {
       } catch (err) { printError(err); }
     });
 
+  cmd.command("update <name>")
+    .description("Update an internal user")
+    .option("--user-password <pass>", "new password")
+    .option("--email <email>", "email address")
+    .option("--first <name>", "first name")
+    .option("--last <name>", "last name")
+    .option("--group <name>", "identity group name")
+    .option("--description <desc>", "description")
+    .option("--enable", "enable the user")
+    .option("--disable", "disable the user")
+    .action(async (name, opts, command) => {
+      try {
+        const globalOpts = command.optsWithGlobals();
+        const conn = resolveConnection(globalOpts);
+        await checkWriteAllowed(conn, globalOpts);
+        const client = new IseClient(conn, {
+          noCache: !globalOpts.cache, debug: globalOpts.debug, dryRun: globalOpts.dryRun,
+        });
+
+        const existing = await findUserByName(client, name);
+        const body = {
+          InternalUser: {
+            id: existing.id,
+            name: existing.name,
+            enabled: existing.enabled,
+          },
+        };
+
+        if (opts.userPassword) body.InternalUser.password = opts.userPassword;
+        if (opts.email) body.InternalUser.email = opts.email;
+        if (opts.first) body.InternalUser.firstName = opts.first;
+        if (opts.last) body.InternalUser.lastName = opts.last;
+        if (opts.description !== undefined) body.InternalUser.description = opts.description;
+        if (opts.enable) body.InternalUser.enabled = true;
+        if (opts.disable) body.InternalUser.enabled = false;
+        if (opts.group) {
+          body.InternalUser.identityGroups = await resolveGroupId(client, opts.group);
+        }
+
+        const result = await client.ersPut(`/internaluser/${existing.id}`, body);
+        if (result.dryRun) { printDryRun(result); return; }
+        if (globalOpts.audit !== false) audit.log({ command: "internal-user update", name });
+        console.log(`Internal user "${name}" updated.`);
+      } catch (err) { printError(err); }
+    });
+
   cmd.command("delete <name>")
     .description("Delete an internal user")
     .action(async (name, opts, command) => {
