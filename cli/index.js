@@ -1,9 +1,10 @@
 const { Command } = require("commander");
 const pkg = require("../package.json");
 
-import("update-notifier")
-  .then(({ default: updateNotifier }) => updateNotifier({ pkg }).notify())
-  .catch(() => {});
+try {
+  const updateNotifier = require("update-notifier").default || require("update-notifier");
+  updateNotifier({ pkg }).notify();
+} catch {};
 
 const program = new Command();
 
