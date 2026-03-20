@@ -225,12 +225,54 @@ cisco-ise internal-user update <name> --enable|--disable|--group <group>|--user-
 cisco-ise internal-user delete <name>
 ```
 
-## Read-Only Protection
+## Agent-Safe Deployment
 
-Clusters can be configured as read-only:
+When giving AI agents access to the cisco-ise CLI, use these layers of protection. Only ISE-side RBAC is truly unbypassable — the others add friction but a determined agent with shell access could work around them.
+
+### Layer 1: ISE Read-Only Admin (recommended — unbypassable)
+
+Create a dedicated ISE admin account with **ERS Operator** (read-only) instead of **ERS Admin** (read-write). The ISE server itself rejects all write API calls regardless of what the CLI or agent does.
+
+In ISE admin GUI:
+1. Administration > System > Admin Access > Administrators > Admin Users
+2. Create a new admin (e.g., `cli-reader`)
+3. Assign to **ERS Operator** group (read-only ERS access)
+4. Optionally add **MNT Admin** for monitoring/troubleshooting
+
+```bash
+cisco-ise config add prod --host <host> --username cli-reader --password '<ss:ID:password>' --insecure
+```
+
+This is the only protection that cannot be bypassed by any client-side mechanism. The ISE server enforces the restriction.
+
+For write operations, use a separate cluster config with ERS Admin credentials that only humans access:
+```bash
+cisco-ise config add prod-admin --host <host> --username cli-admin --password '<ss:ID:password>' --read-only --insecure
+```
+
+### Layer 2: CLI Read-Only Flag (human-in-the-loop)
 
 ```bash
 cisco-ise config add prod --host <host> --username <user> --password '<ss:ID:password>' --read-only --insecure
 ```
 
-Write operations on read-only clusters require typing a random word to confirm (interactive TTY only). Non-interactive environments are blocked entirely.
+Write operations require typing a random 8-character hex string in an interactive TTY. Non-interactive environments (agents, scripts, pipes) are blocked entirely because `process.stdin.isTTY` is false.
+
+**Limitation:** An agent with shell access could edit `~/.cisco-ise/config.json` directly to remove the `readOnly` flag.
+
+### Layer 3: Separate Credentials
+
+Keep admin/write credentials in Secret Server, not in the config file:
+```bash
+cisco-ise config add prod --host <host> --username <user> --password '<ss:ID:password>' --insecure
+```
+
+The agent never sees the actual password — it's resolved at runtime from Secret Server via `ss-cli`. Rotate credentials in Secret Server without touching the CLI config.
+
+### Recommended Setup for Agent Access
+
+| Account | ISE Role | CLI Config | Used By |
+|---------|----------|------------|---------|
+| `cli-reader` | ERS Operator + MNT Admin | `prod` cluster | AI agents (read + troubleshoot) |
+| `cli-admin` | ERS Admin | `prod-admin` cluster, `--read-only` | Humans only (writes need TTY confirmation) |
+| `sponsor` | Sponsor (internal user) | `--sponsor-user` in config | Guest management |
