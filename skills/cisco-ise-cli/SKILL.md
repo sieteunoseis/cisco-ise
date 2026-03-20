@@ -126,6 +126,105 @@ Any common format is accepted and automatically normalized:
 - `--debug` — enable verbose logging
 - `--no-audit` — disable audit trail logging
 
+## RADIUS Troubleshooting Workflow
+
+When a user reports a connectivity or authentication problem, follow this workflow. Always use `--format json` so you can parse results programmatically.
+
+### Step 1: Identify the device
+
+Get the MAC address from the user, or find it from active sessions:
+
+```bash
+cisco-ise session list --format json
+cisco-ise session search --mac <mac> --format json
+cisco-ise session search --user <username> --format json
+```
+
+### Step 2: Run troubleshoot
+
+```bash
+cisco-ise radius troubleshoot --mac <mac> --last 1d --format json
+```
+
+This returns the full auth history with: pass/fail, matched policy rules, failure reasons, auth protocol, VLAN assignment, and ISE server.
+
+### Step 3: Analyze and correlate
+
+Based on the troubleshoot output, run follow-up commands:
+
+**If auth is failing — check the user:**
+```bash
+cisco-ise internal-user get <username> --format json
+```
+- Is `enabled` false? → `cisco-ise internal-user update <user> --enable`
+- Is the user missing? → `cisco-ise internal-user add --user-name <user> --user-password <pass> --group <group>`
+
+**If NAD not found (11007) — check network device:**
+```bash
+cisco-ise network-device list --format json
+```
+- Is the device missing? → `cisco-ise network-device add --name <name> --ip <ip> --radius-secret <secret>`
+
+**If shared secret mismatch (11036, 22040) — verify NAD config:**
+```bash
+cisco-ise network-device get <device-name> --format json
+```
+- Check `authenticationSettings.radiusSharedSecret` matches the device config.
+
+**If CoA failing (5417, 11213) — check CoA port:**
+```bash
+cisco-ise network-device get <device-name> --format json
+```
+- Check `coaPort`. Cisco uses 1700, RFC standard is 3799. UniFi uses 3799.
+
+**If certificate rejected (12520) — check deployment:**
+```bash
+cisco-ise deployment nodes --format json
+```
+- Verify EAP certificate. Client must trust the signing CA.
+
+**If authorization denied (15039) — check policy:**
+```bash
+cisco-ise auth-profile list --format json
+cisco-ise identity-group list --format json
+```
+- User may not match any authorization rule. Check group membership.
+
+### Step 4: Verify the fix
+
+After making changes, ask the user to reconnect, then re-run:
+```bash
+cisco-ise radius troubleshoot --mac <mac> --last 30m
+```
+Confirm the latest auth shows PASS.
+
+### Step 5: Common failure code reference
+
+| Code | Issue | Quick Fix |
+|------|-------|-----------|
+| 5411 | EAP timeout — no client response | Check supplicant config, certificate trust |
+| 5417 | CoA failed | Check NAD CoA port and shared secret |
+| 11007 | NAD not found | Add NAD: `cisco-ise network-device add` |
+| 11036 | Invalid Message-Authenticator | Shared secret mismatch — update NAD |
+| 12520 | Client rejected ISE cert | Install CA cert on client or fix ISE EAP cert |
+| 15039 | Rejected by authz profile | Add authorization rule for this user/group |
+| 22040 | Wrong password or shared secret | Reset password or fix shared secret |
+| 22056 | User not found | Add user or check auth policy identity store |
+| 22061 | User disabled | `cisco-ise internal-user update <user> --enable` |
+| 24408 | AD auth failed — wrong password | Check AD credentials, also check shared secret if PAP |
+
+The CLI has 311 ISE failure codes mapped in `cli/utils/failure-reasons.js` with causes and remediation. The `radius troubleshoot` command outputs these automatically.
+
+## Internal User Management
+
+```bash
+cisco-ise internal-user list
+cisco-ise internal-user get <name>
+cisco-ise internal-user add --user-name <name> --user-password <pass> --group <group>
+cisco-ise internal-user update <name> --enable|--disable|--group <group>|--user-password <pass>
+cisco-ise internal-user delete <name>
+```
+
 ## Read-Only Protection
 
 Clusters can be configured as read-only:
