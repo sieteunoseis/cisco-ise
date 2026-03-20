@@ -2,6 +2,7 @@ const { resolveConnection } = require("../utils/connection.js");
 const { printResult, printError, printDryRun } = require("../utils/output.js");
 const { checkWriteAllowed } = require("../utils/confirm.js");
 const { normalizeMac } = require("../utils/mac.js");
+const { createSpinner } = require("../utils/spinner.js");
 const audit = require("../utils/audit.js");
 const IseClient = require("../utils/api.js");
 

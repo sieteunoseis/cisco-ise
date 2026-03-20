@@ -1,6 +1,8 @@
 const { resolveConnection } = require("../utils/connection.js");
 const { printResult, printError } = require("../utils/output.js");
 const { parseDuration } = require("../utils/time.js");
+const { createSpinner } = require("../utils/spinner.js");
+const { matchFailure } = require("../utils/failure-reasons.js");
 const IseClient = require("../utils/api.js");
 
 function extractVal(field) {
@@ -62,21 +64,6 @@ function parseAuthRecords(data) {
   });
 }
 
-// Common ISE failure reasons and remediation suggestions
-const REMEDIATION = {
-  "22056": { issue: "User not found in identity store", fix: "Verify the username exists: cisco-ise internal-user list" },
-  "22058": { issue: "Wrong password", fix: "Reset the user's password: cisco-ise internal-user update <user> --user-password <pass>" },
-  "22061": { issue: "User disabled", fix: "Enable the user: cisco-ise internal-user update <user> --enable" },
-  "11213": { issue: "No CoA response from network device", fix: "Verify the device supports CoA and the CoA port is correct" },
-  "12300": { issue: "EAP session timed out", fix: "Check client supplicant settings and network connectivity" },
-  "5400": { issue: "Authentication failed", fix: "Check credentials, identity store, and authentication policy" },
-  "5440": { issue: "Client abandoned EAP session", fix: "Check client supplicant configuration and certificate trust" },
-  "5417": { issue: "Dynamic Authorization (CoA) failed", fix: "Verify NAD supports CoA and shared secret matches" },
-  "5405": { issue: "RADIUS request dropped", fix: "Check shared secret matches between NAD and ISE" },
-  "5411": { issue: "Supplicant stopped responding", fix: "Check client supplicant and network device EAP timers" },
-  "5407": { issue: "RADIUS request timeout", fix: "Check network connectivity between NAD and ISE" },
-};
-
 module.exports = function (program) {
   const cmd = program.command("radius").description("RADIUS authentication monitoring");
 
@@ -93,7 +80,9 @@ module.exports = function (program) {
         if (!opts.mac) throw new Error("--mac is required");
 
         const seconds = Math.ceil(parseDuration(opts.last) / 1000);
+        const spinner = createSpinner("Querying ISE auth log...");
         const data = await client.mntGet(`/AuthStatus/MACAddress/${opts.mac}/${seconds}/0/All`);
+        spinner.stop();
         const records = parseAuthRecords(data);
 
         const results = records.map((r) => ({
@@ -185,7 +174,9 @@ module.exports = function (program) {
         if (!opts.mac) throw new Error("--mac is required");
 
         const seconds = Math.ceil(parseDuration(opts.last) / 1000);
+        const spinner = createSpinner("Analyzing RADIUS auth history...");
         const data = await client.mntGet(`/AuthStatus/MACAddress/${opts.mac}/${seconds}/0/All`);
+        spinner.stop();
         const records = parseAuthRecords(data);
 
         if (records.length === 0) {
@@ -252,30 +243,15 @@ module.exports = function (program) {
             console.log(`\n  ${f.timestamp}:`);
             if (f.failureReason) {
               console.log(`    Reason: ${f.failureReason}`);
-              // Check for known remediation
-              const code = String(f.messageCode);
-              if (REMEDIATION[code]) {
-                console.log(`    Fix:    ${REMEDIATION[code].fix}`);
-              }
-              // Also check failure reason text for known patterns
-              const reasonLower = f.failureReason.toLowerCase();
-              if (reasonLower.includes("no response") && reasonLower.includes("dynamic authorization")) {
-                console.log("    Fix:    Verify the NAD supports CoA. Check CoA port (default 1700 for Cisco, 3799 for others).");
-                console.log("            Ensure shared secret matches: cisco-ise network-device get <name>");
-              } else if (reasonLower.includes("not found") || reasonLower.includes("subject not found")) {
-                console.log("    Fix:    User not in identity store. Check: cisco-ise internal-user list");
-              } else if (reasonLower.includes("wrong password") || reasonLower.includes("password")) {
-                console.log("    Fix:    Reset password: cisco-ise internal-user update <user> --user-password <pass>");
-              } else if (reasonLower.includes("disabled") || reasonLower.includes("user disabled")) {
-                console.log("    Fix:    Enable user: cisco-ise internal-user update <user> --enable");
-              } else if (reasonLower.includes("timeout") || reasonLower.includes("timed out")) {
-                console.log("    Fix:    Check network connectivity between NAD and ISE. Verify RADIUS port (1812) is reachable.");
-              } else if (reasonLower.includes("shared secret") || reasonLower.includes("authenticator")) {
-                console.log("    Fix:    RADIUS shared secret mismatch. Update NAD: cisco-ise network-device update <name> --radius-secret <secret>");
-              } else if (reasonLower.includes("certificate") || reasonLower.includes("tls")) {
-                console.log("    Fix:    Check ISE EAP certificate. Client may need to trust the CA or the cert may be expired.");
-              } else if (reasonLower.includes("abandoned") || reasonLower.includes("supplicant")) {
-                console.log("    Fix:    Client supplicant stopped responding. Check client WiFi/802.1X settings.");
+              const match = matchFailure(f.failureReason, f.messageCode);
+              if (match) {
+                if (match.causes?.length) {
+                  console.log(`    Causes: ${match.causes[0]}`);
+                  for (let i = 1; i < match.causes.length; i++) {
+                    console.log(`            ${match.causes[i]}`);
+                  }
+                }
+                console.log(`    Fix:    ${match.fix}`);
               }
             }
           }
