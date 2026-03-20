@@ -276,3 +276,71 @@ The agent never sees the actual password — it's resolved at runtime from Secre
 | `cli-reader` | ERS Operator + MNT Admin | `prod` cluster | AI agents (read + troubleshoot) |
 | `cli-admin` | ERS Admin | `prod-admin` cluster, `--read-only` | Humans only (writes need TTY confirmation) |
 | `sponsor` | Sponsor (internal user) | `--sponsor-user` in config | Guest management |
+
+### Data Exposure by Command
+
+Before granting agent access, understand what data each command exposes. Use this to decide which ISE RBAC permissions to grant.
+
+**Low sensitivity — safe for most agents:**
+
+| Command | Data Exposed |
+|---------|-------------|
+| `deployment nodes` | ISE hostnames, roles, services |
+| `deployment status` | Node status |
+| `identity-group list` | Group names and descriptions |
+| `auth-profile list` | Authorization profile names |
+| `trustsec sgt list` | SGT names and descriptions |
+| `trustsec sgacl list` | SGACL names |
+| `tacacs command-sets` | TACACS command set names |
+| `tacacs profiles` | TACACS profile names |
+
+**Medium sensitivity — contains user/device identifiers:**
+
+| Command | Data Exposed |
+|---------|-------------|
+| `endpoint list/search` | MAC addresses, endpoint group membership |
+| `session list/search` | Active users, MAC addresses, NAS IPs, ISE server |
+| `radius auth-log` | Auth history: usernames, MACs, pass/fail, timestamps, policy matches |
+| `radius troubleshoot` | Full auth detail: all of auth-log plus protocol, TLS version, VLAN, identity store |
+| `radius failures` | Failed auth attempts with usernames and failure reasons |
+| `internal-user list` | Usernames, descriptions, user IDs |
+| `guest list` | Guest usernames and IDs |
+
+**High sensitivity — contains secrets or enables write operations:**
+
+| Command | Data Exposed / Risk |
+|---------|-------------|
+| `network-device get` | **RADIUS shared secrets in plaintext**, device IPs, CoA ports |
+| `config show` | ISE hostname, admin username, masked password, sponsor username |
+| `internal-user get` | User details including email, group membership, enabled status |
+| `auth-profile get` | Full authorization profile config (VLANs, ACLs, attributes) |
+| `endpoint add/update/delete` | **Write operation** — modifies endpoint database |
+| `network-device add/update/delete` | **Write operation** — modifies NAD database, exposes shared secrets |
+| `internal-user add/update/delete` | **Write operation** — creates/modifies/removes user accounts |
+| `guest create/delete` | **Write operation** — creates/removes guest accounts |
+| `session disconnect/reauth` | **Write operation** — disrupts active user sessions |
+
+### Recommended Agent Scoping
+
+**Troubleshooting-only agent (most common):**
+- ISE role: ERS Operator + MNT Admin
+- Safe commands: `session list/search`, `radius auth-log`, `radius troubleshoot`, `endpoint list/search`, `identity-group list`, `deployment nodes`
+- Risk: exposes usernames, MACs, auth history — acceptable for helpdesk/NOC use
+
+**Read-all agent (full visibility):**
+- ISE role: ERS Operator + MNT Admin
+- All read commands including `network-device get` (exposes shared secrets)
+- Risk: shared secrets visible — use only if agent environment is trusted
+
+**Full access agent (not recommended for production):**
+- ISE role: ERS Admin
+- All commands including writes
+- Risk: agent can modify ISE configuration — use `--read-only` flag as a speed bump only
+
+### Audit Trail
+
+Every CLI command is logged to `~/.cisco-ise/audit.jsonl` with timestamp, command, and cluster name. Review agent activity with:
+
+```bash
+cat ~/.cisco-ise/audit.jsonl | tail -20
+```
