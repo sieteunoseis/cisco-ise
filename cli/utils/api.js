@@ -21,7 +21,7 @@ class IseClient {
       httpsAgent: conn.insecure
         ? new (require("https").Agent)({ rejectUnauthorized: false })
         : undefined,
-      timeout: 30000,
+      timeout: 90000,
     });
   }
 

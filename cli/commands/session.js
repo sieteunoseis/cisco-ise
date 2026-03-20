@@ -9,15 +9,19 @@ function extractSessions(mntData) {
   const list = mntData?.activeList?.activeSession;
   if (!list) return [];
   const sessions = Array.isArray(list) ? list : [list];
-  return sessions.map((s) => ({
-    user: s.user_name || s.calling_station_id || "unknown",
-    mac: s.calling_station_id || "",
-    ip: s.framed_ip_address || s.nas_ip_address || "",
-    nas: s.nas_ip_address || "",
-    status: s.acct_status_type || "",
-    sessionId: s.acct_session_id || "",
-    server: s.acs_server || "",
-  }));
+  return sessions.map((s) => {
+    const row = {
+      user: s.user_name || s.calling_station_id || "unknown",
+      mac: s.calling_station_id || "",
+      nas: s.nas_ip_address || "",
+      server: s.server || s.acs_server || "",
+    };
+    if (s.framed_ip_address) row.ip = s.framed_ip_address;
+    if (s.acct_session_id) row.sessionId = s.acct_session_id;
+    if (s.acct_status_type) row.status = s.acct_status_type;
+    if (s.nas_port_id) row.port = s.nas_port_id;
+    return row;
+  });
 }
 
 module.exports = function (program) {
