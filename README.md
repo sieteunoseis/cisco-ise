@@ -1,8 +1,10 @@
 # cisco-ise
 
-[![npm](https://img.shields.io/npm/v/cisco-ise.svg)](https://www.npmjs.com/package/cisco-ise)
+[![npm version](https://img.shields.io/npm/v/cisco-ise.svg)](https://www.npmjs.com/package/cisco-ise)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Buy Me A Coffee](https://img.shields.io/badge/Buy%20Me%20A%20Coffee-donate-orange.svg)](https://buymeacoffee.com/automatebldrs)
+[![Node.js Version](https://img.shields.io/node/v/cisco-ise.svg)](https://nodejs.org)
+[![Skills](https://img.shields.io/badge/skills.sh-cisco--ise--cli-blue)](https://skills.sh/sieteunoseis/cisco-ise)
+[![Buy Me a Coffee](https://img.shields.io/badge/Buy%20Me%20a%20Coffee-support-orange?logo=buy-me-a-coffee)](https://buymeacoffee.com/automatebldrs)
 
 CLI for Cisco ISE (Identity Services Engine) 3.1+ — day-to-day operations and troubleshooting via ERS, OpenAPI, and MNT APIs.
 
@@ -10,6 +12,18 @@ CLI for Cisco ISE (Identity Services Engine) 3.1+ — day-to-day operations and 
 
 ```bash
 npm install -g cisco-ise
+```
+
+Or run without installing:
+
+```bash
+npx cisco-ise --help
+```
+
+### AI Agent Skills
+
+```bash
+npx skills add sieteunoseis/cisco-ise
 ```
 
 ## Quick Start
@@ -209,13 +223,55 @@ cisco-ise endpoint list --format toon    # token-efficient for AI agents
 | `--no-cache` | Bypass response cache |
 | `--debug` | Enable debug logging |
 
+## RADIUS Troubleshooting
+
+```bash
+# Full auth history for a device
+cisco-ise radius auth-log --mac 9A:0A:95:8F:AF:4F --last 1d
+
+# Detailed troubleshooting with failure analysis and remediation
+cisco-ise radius troubleshoot --mac 9A:0A:95:8F:AF:4F
+```
+
+The `troubleshoot` command shows:
+- Device summary (user, protocol, TLS, policy match, VLAN assignment)
+- Auth timeline with pass/fail and matched authorization rules
+- Failure analysis with causes and fix commands from 311 mapped ISE error codes
+
+## AI Agent Skills
+
+This CLI is designed for both humans and AI agents. Install the [skills.sh](https://skills.sh) skill to give AI agents ISE troubleshooting capabilities:
+
+```bash
+npx skills add sieteunoseis/cisco-ise
+```
+
+The skill teaches agents the full RADIUS troubleshooting workflow — from identifying a device to diagnosing failures and suggesting fixes using CLI commands.
+
+### Agent-Safe Deployment
+
+For production ISE, create a read-only ISE admin account (**ERS Operator** role) for agents. This is the only unbypassable protection — the ISE server rejects all write API calls regardless of what the client does.
+
+| Account | ISE Role | Used By |
+|---------|----------|---------|
+| `cli-reader` | ERS Operator + MNT Admin | AI agents (read + troubleshoot) |
+| `cli-admin` | ERS Admin + `--read-only` flag | Humans (writes need TTY confirmation) |
+
+See the [skill documentation](https://skills.sh/sieteunoseis/cisco-ise) for the full data exposure matrix and scoping guide.
+
 ## ISE API Details
 
 - **ERS API** (port 9060) — endpoints, groups, network devices, guests, auth profiles, TrustSec
-- **OpenAPI** (port 443) — deployment, modern endpoints
-- **MNT API** (port 443) — sessions, CoA, RADIUS/TACACS monitoring
+- **OpenAPI** (port 443) — deployment, policy sets
+- **MNT API** (port 443) — sessions, CoA, RADIUS/TACACS auth logs
 
 ERS must be enabled in ISE Admin > Settings > ERS Settings.
+
+## Funding
+
+If this tool is useful to you, consider supporting development:
+
+[![Buy Me a Coffee](https://img.shields.io/badge/Buy%20Me%20a%20Coffee-support-orange?logo=buy-me-a-coffee)](https://buymeacoffee.com/automatebldrs)
 
 ## License
 
