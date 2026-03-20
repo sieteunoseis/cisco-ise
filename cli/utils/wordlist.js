@@ -1,15 +1,9 @@
-const WORDS = [
-  "rainbow", "thunder", "crystal", "garden", "falcon",
-  "silver", "marble", "harbor", "bridge", "rocket",
-  "sunset", "copper", "forest", "planet", "castle",
-  "anchor", "breeze", "candle", "dolphin", "eclipse",
-  "glacier", "jaguar", "lantern", "meadow", "nebula",
-  "orchid", "panther", "quartz", "riddle", "saffron",
-  "timber", "umbrella", "velvet", "walrus", "zenith"
-];
+const crypto = require("crypto");
 
 function getRandomWord() {
-  return WORDS[Math.floor(Math.random() * WORDS.length)];
+  // Generate a random 8-char string that doesn't exist in the codebase
+  // Not guessable, not brute-forceable from a known word list
+  return crypto.randomBytes(4).toString("hex");
 }
 
-module.exports = { getRandomWord, WORDS };
+module.exports = { getRandomWord };
