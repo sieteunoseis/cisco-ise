@@ -1,4 +1,3 @@
-const axios = require("axios");
 const { XMLParser } = require("fast-xml-parser");
 const fs = require("fs");
 const path = require("path");
@@ -12,83 +11,111 @@ class IseClient {
     this.noCache = opts.noCache || false;
     this.debug = opts.debug || false;
     this.dryRun = opts.dryRun || false;
-    this.configDir = process.env.CISCO_ISE_CONFIG_DIR || path.join(require("os").homedir(), ".cisco-ise");
+    this.configDir =
+      process.env.CISCO_ISE_CONFIG_DIR ||
+      path.join(require("os").homedir(), ".cisco-ise");
     this.cacheDir = path.join(this.configDir, "cache");
     this.cacheTTL = 5 * 60 * 1000;
 
-    const httpsAgent = conn.insecure
-      ? new (require("https").Agent)({ rejectUnauthorized: false })
-      : undefined;
+    if (conn.insecure) {
+      process.env.NODE_TLS_REJECT_UNAUTHORIZED = "0";
+    }
 
-    this.axios = axios.create({
-      auth: { username: conn.username, password: conn.password },
-      httpsAgent,
-      timeout: 90000,
-    });
+    this.authHeader =
+      "Basic " +
+      Buffer.from(`${conn.username}:${conn.password}`).toString("base64");
 
-    // Sponsor axios instance for guest API (uses sponsor credentials)
     if (conn.sponsorUser && conn.sponsorPassword) {
-      this.sponsorAxios = axios.create({
-        auth: { username: conn.sponsorUser, password: conn.sponsorPassword },
-        httpsAgent,
-        timeout: 90000,
-      });
+      this.sponsorAuthHeader =
+        "Basic " +
+        Buffer.from(`${conn.sponsorUser}:${conn.sponsorPassword}`).toString(
+          "base64",
+        );
     }
   }
 
   sponsorGet(endpoint, params = {}) {
-    if (!this.sponsorAxios) {
+    if (!this.sponsorAuthHeader) {
       throw new Error(
         "Guest API requires sponsor credentials. Run:\n" +
-        "  cisco-ise config update <name> --sponsor-user <user> --sponsor-password <pass>"
+          "  cisco-ise config update <name> --sponsor-user <user> --sponsor-password <pass>",
       );
     }
     const url = this.ersUrl(endpoint);
     if (this.debug) process.stderr.write(`[DEBUG] SPONSOR GET ${url}\n`);
-    return this.sponsorAxios({ method: "GET", url, headers: { Accept: "application/json" }, params })
-      .then((res) => res.data);
+    return this._fetch("GET", url, {
+      headers: { Accept: "application/json" },
+      params,
+      auth: this.sponsorAuthHeader,
+    }).then((res) => res.data);
   }
 
   sponsorPost(endpoint, body) {
-    if (!this.sponsorAxios) {
+    if (!this.sponsorAuthHeader) {
       throw new Error(
         "Guest API requires sponsor credentials. Run:\n" +
-        "  cisco-ise config update <name> --sponsor-user <user> --sponsor-password <pass>"
+          "  cisco-ise config update <name> --sponsor-user <user> --sponsor-password <pass>",
       );
     }
     const url = this.ersUrl(endpoint);
-    if (this.dryRun) return Promise.resolve({ dryRun: true, method: "POST", url, body });
+    if (this.dryRun)
+      return Promise.resolve({ dryRun: true, method: "POST", url, body });
     if (this.debug) process.stderr.write(`[DEBUG] SPONSOR POST ${url}\n`);
-    return this.sponsorAxios({ method: "POST", url, headers: { Accept: "application/json", "Content-Type": "application/json" }, data: body })
-      .then((res) => { this.invalidateCache(); return res.data; });
+    return this._fetch("POST", url, {
+      headers: {
+        Accept: "application/json",
+        "Content-Type": "application/json",
+      },
+      data: body,
+      auth: this.sponsorAuthHeader,
+    }).then((res) => {
+      this.invalidateCache();
+      return res.data;
+    });
   }
 
   sponsorPut(endpoint, body) {
-    if (!this.sponsorAxios) {
+    if (!this.sponsorAuthHeader) {
       throw new Error(
         "Guest API requires sponsor credentials. Run:\n" +
-        "  cisco-ise config update <name> --sponsor-user <user> --sponsor-password <pass>"
+          "  cisco-ise config update <name> --sponsor-user <user> --sponsor-password <pass>",
       );
     }
     const url = this.ersUrl(endpoint);
-    if (this.dryRun) return Promise.resolve({ dryRun: true, method: "PUT", url, body });
+    if (this.dryRun)
+      return Promise.resolve({ dryRun: true, method: "PUT", url, body });
     if (this.debug) process.stderr.write(`[DEBUG] SPONSOR PUT ${url}\n`);
-    return this.sponsorAxios({ method: "PUT", url, headers: { Accept: "application/json", "Content-Type": "application/json" }, data: body })
-      .then((res) => { this.invalidateCache(); return res.data; });
+    return this._fetch("PUT", url, {
+      headers: {
+        Accept: "application/json",
+        "Content-Type": "application/json",
+      },
+      data: body,
+      auth: this.sponsorAuthHeader,
+    }).then((res) => {
+      this.invalidateCache();
+      return res.data;
+    });
   }
 
   sponsorDelete(endpoint) {
-    if (!this.sponsorAxios) {
+    if (!this.sponsorAuthHeader) {
       throw new Error(
         "Guest API requires sponsor credentials. Run:\n" +
-        "  cisco-ise config update <name> --sponsor-user <user> --sponsor-password <pass>"
+          "  cisco-ise config update <name> --sponsor-user <user> --sponsor-password <pass>",
       );
     }
     const url = this.ersUrl(endpoint);
-    if (this.dryRun) return Promise.resolve({ dryRun: true, method: "DELETE", url });
+    if (this.dryRun)
+      return Promise.resolve({ dryRun: true, method: "DELETE", url });
     if (this.debug) process.stderr.write(`[DEBUG] SPONSOR DELETE ${url}\n`);
-    return this.sponsorAxios({ method: "DELETE", url, headers: { Accept: "application/json" } })
-      .then((res) => { this.invalidateCache(); return res.data; });
+    return this._fetch("DELETE", url, {
+      headers: { Accept: "application/json" },
+      auth: this.sponsorAuthHeader,
+    }).then((res) => {
+      this.invalidateCache();
+      return res.data;
+    });
   }
 
   async sponsorPaginateAll(endpoint, params = {}, opts = {}) {
@@ -98,11 +125,16 @@ class IseClient {
     let all = [];
 
     while (all.length < limit) {
-      const data = await this.sponsorGet(endpoint, { ...params, size: pageSize, page });
+      const data = await this.sponsorGet(endpoint, {
+        ...params,
+        size: pageSize,
+        page,
+      });
       const result = data?.SearchResult;
       if (!result?.resources?.length) break;
       all = all.concat(result.resources);
-      if (all.length >= result.total || result.resources.length < pageSize) break;
+      if (all.length >= result.total || result.resources.length < pageSize)
+        break;
       page++;
     }
 
@@ -152,7 +184,10 @@ class IseClient {
   setCache(key, data) {
     if (this.noCache) return;
     fs.mkdirSync(this.cacheDir, { recursive: true });
-    fs.writeFileSync(path.join(this.cacheDir, `${key}.json`), JSON.stringify(data));
+    fs.writeFileSync(
+      path.join(this.cacheDir, `${key}.json`),
+      JSON.stringify(data),
+    );
   }
 
   invalidateCache(prefix) {
@@ -163,7 +198,9 @@ class IseClient {
           fs.unlinkSync(path.join(this.cacheDir, file));
         }
       }
-    } catch { /* cache dir may not exist */ }
+    } catch {
+      /* cache dir may not exist */
+    }
   }
 
   async ersGet(endpoint, params = {}) {
@@ -187,16 +224,20 @@ class IseClient {
     let all = [];
 
     while (all.length < limit) {
-      const data = await this.ersGet(endpoint, { ...params, size: pageSize, page });
+      const data = await this.ersGet(endpoint, {
+        ...params,
+        size: pageSize,
+        page,
+      });
       const result = data?.SearchResult;
       if (!result?.resources?.length) break;
       all = all.concat(result.resources);
-      if (all.length >= result.total || result.resources.length < pageSize) break;
+      if (all.length >= result.total || result.resources.length < pageSize)
+        break;
       page++;
     }
 
     const results = all.slice(0, limit === Infinity ? undefined : limit);
-    // Strip ERS link objects (they render as [object Object] in table output)
     return results.map((r) => {
       if (!r.link) return r;
       const { link, ...rest } = r;
@@ -210,7 +251,10 @@ class IseClient {
       return { dryRun: true, method: "POST", url, body };
     }
     const res = await this.request("POST", url, {
-      headers: { Accept: "application/json", "Content-Type": "application/json" },
+      headers: {
+        Accept: "application/json",
+        "Content-Type": "application/json",
+      },
       data: body,
     });
     this.invalidateCache();
@@ -223,7 +267,10 @@ class IseClient {
       return { dryRun: true, method: "PUT", url, body };
     }
     const res = await this.request("PUT", url, {
-      headers: { Accept: "application/json", "Content-Type": "application/json" },
+      headers: {
+        Accept: "application/json",
+        "Content-Type": "application/json",
+      },
       data: body,
     });
     this.invalidateCache();
@@ -275,22 +322,68 @@ class IseClient {
       process.stderr.write(`[DEBUG] ${method} ${url}\n`);
     }
     try {
-      return await this.axios({ method, url, ...config });
+      return await this._fetch(method, url, config);
     } catch (err) {
       if (err.response?.status === 429) {
         for (let attempt = 1; attempt <= 3; attempt++) {
           const delay = Math.pow(2, attempt) * 1000;
-          process.stderr.write(`Rate limited, retrying in ${delay / 1000}s...\n`);
+          process.stderr.write(
+            `Rate limited, retrying in ${delay / 1000}s...\n`,
+          );
           await new Promise((r) => setTimeout(r, delay));
           try {
-            return await this.axios({ method, url, ...config });
+            return await this._fetch(method, url, config);
           } catch (retryErr) {
-            if (retryErr.response?.status !== 429 || attempt === 3) throw retryErr;
+            if (retryErr.response?.status !== 429 || attempt === 3)
+              throw retryErr;
           }
         }
       }
       throw err;
     }
+  }
+
+  async _fetch(method, url, config = {}) {
+    const authHeader = config.auth || this.authHeader;
+    const qs = config.params
+      ? new URLSearchParams(config.params).toString()
+      : "";
+    const fullUrl = qs ? `${url}?${qs}` : url;
+
+    const fetchOpts = {
+      method,
+      headers: {
+        Authorization: authHeader,
+        ...config.headers,
+      },
+      signal: AbortSignal.timeout(90000),
+    };
+
+    if (config.data !== undefined) {
+      fetchOpts.body = JSON.stringify(config.data);
+      if (!fetchOpts.headers["Content-Type"]) {
+        fetchOpts.headers["Content-Type"] = "application/json";
+      }
+    }
+
+    const response = await fetch(fullUrl, fetchOpts);
+
+    if (!response.ok) {
+      const body = await response.text();
+      const err = new Error(`HTTP ${response.status}: ${body}`);
+      err.response = { status: response.status, data: body };
+      throw err;
+    }
+
+    const contentType = response.headers.get("content-type") || "";
+    let data;
+    if (contentType.includes("json")) {
+      data = await response.json();
+    } else {
+      data = await response.text();
+    }
+
+    return { status: response.status, data };
   }
 }
 
